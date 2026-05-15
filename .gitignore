@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env
+
+# Dataset
+datasets/
+system_training/datasets/
+
+# Models
+models/
+*.pth
+*.pt
+
+# Database
+*.db
+
+# Outputs
+outputs/
+*.html
+
+# Images
+test_images/
+sample.jpg
+input.jpg
+
+# Frontend
+node_modules/
+dist/
+build/
+
+# OS
+desktop.ini
+.DS_Store
