@@ -28,7 +28,7 @@ const riskColor = (risk: string) => {
   return "text-success bg-success/10 border-success/30";
 };
 
-export default function PatientHistory({ refreshKey }: Props) => {
+export default function PatientHistory({ refreshKey }: Props) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<HistoryRecord | null>(null);
   const [records, setRecords] = useState<HistoryRecord[]>(() => loadHistory());
