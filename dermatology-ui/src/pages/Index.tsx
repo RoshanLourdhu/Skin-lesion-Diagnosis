@@ -6,6 +6,7 @@ import SymptomsSelector from "@/components/derma/SymptomsSelector";
 import ImageUploader from "@/components/derma/ImageUploader";
 import RunAnalysisButton from "@/components/derma/RunAnalysisButton";
 import MedicalReport from "@/components/derma/MedicalReport";
+import WolframClinicalIntelligence from "@/components/derma/WolframClinicalIntelligence";
 
 export default function Index() {
 
@@ -97,6 +98,15 @@ export default function Index() {
 
     setReport(record[13]);
 
+    let wolframAnalysis = null;
+    if (record[15]) {
+      try {
+        wolframAnalysis = typeof record[15] === "string" ? JSON.parse(record[15]) : record[15];
+      } catch (err) {
+        console.error("Error parsing historical Wolfram analysis:", err);
+      }
+    }
+
     setResult({
       classification: {
         label: record[10],
@@ -111,6 +121,7 @@ export default function Index() {
         max_depth: record[8],
         mean_depth: record[9],
       },
+      wolfram_analysis: wolframAnalysis,
       images: result?.images
     });
   };
@@ -196,10 +207,7 @@ export default function Index() {
             <FullImage title="Segmentation" src={result.images.segmentation} />
             <FullImage title="Grad-CAM" src={result.images.gradcam} />
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card title="Depth" src={result.images.depth} />
-              <Card title="Depth Raw" src={result.images.depth_gray} />
-            </div>
+            <CroppedCompositeGrid titleLeft="Depth" srcLeft={result.images.depth} titleRight="Depth Raw" srcRight={result.images.depth_gray} />
 
             <div className="grid lg:grid-cols-2 gap-6">
               <iframe
@@ -212,11 +220,12 @@ export default function Index() {
               />
             </div>
 
-            <div className="grid lg:grid-cols-4 gap-6">
+            <WolframClinicalIntelligence analysis={result.wolfram_analysis} loading={loading} classification={result.classification} />
+
+            <div className="grid lg:grid-cols-3 gap-6">
 
               <MedicalReport report={report} loading={loading} />
 
-              <DiagnosisPanel result={result} />
 
               <MetricsPanel metrics={result.metrics} />
 
@@ -235,36 +244,8 @@ export default function Index() {
 
 /* COMPONENTS */
 
-function Card({ title, src }: any) {
-  if (!src) return null;
-  return (
-    <div className="glass-card p-4">
-      <p>{title}</p>
-      <img src={`http://127.0.0.1:8000${src}`} />
-    </div>
-  );
-}
 
-function FullImage({ title, src }: any) {
-  if (!src) return null;
-  return (
-    <div className="glass-card p-5">
-      <h3>{title}</h3>
-      <img src={`http://127.0.0.1:8000${src}`} />
-    </div>
-  );
-}
 
-function DiagnosisPanel({ result }: any) {
-  return (
-    <div className="glass-card p-6">
-      <h3>Diagnosis</h3>
-      <p>{result?.classification?.label}</p>
-      <p>{(result?.classification?.confidence * 100).toFixed(2)}%</p>
-      <p>{result?.classification?.risk}</p>
-    </div>
-  );
-}
 
 function MetricsPanel({ metrics }: any) {
   if (!metrics) return null;
@@ -290,6 +271,65 @@ function HistoryPanel({ history, onSelect }: any) {
           {h[14]} - {h[10]}
         </div>
       ))}
+    </div>
+  );
+}
+
+/* NEW COMPONENTS */
+
+function FullImage({ title, src }: any) {
+  if (!src) return null;
+  return (
+    <div className="glass-card p-5">
+      <h3 className="mb-2">{title}</h3>
+      <img
+        src={`http://127.0.0.1:8000${src}`}
+        alt={title}
+        className="w-full h-auto object-contain rounded-md"
+      />
+    </div>
+  );
+}
+
+/**
+ * Displays two images side‑by‑side (or stacked on small screens) with titles.
+ * The component ensures the images expand to fill the available width while
+ * preserving aspect ratio.
+ */
+function CroppedCompositeGrid({
+  titleLeft,
+  srcLeft,
+  titleRight,
+  srcRight,
+}: {
+  titleLeft: string;
+  srcLeft: string;
+  titleRight: string;
+  srcRight: string;
+}) {
+  if (!srcLeft && !srcRight) return null;
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      {srcLeft && (
+        <div className="glass-card p-5">
+          <h3 className="mb-2">{titleLeft}</h3>
+          <img
+            src={`http://127.0.0.1:8000${srcLeft}`}
+            alt={titleLeft}
+            className="w-full h-auto object-contain rounded-md"
+          />
+        </div>
+      )}
+      {srcRight && (
+        <div className="glass-card p-5">
+          <h3 className="mb-2">{titleRight}</h3>
+          <img
+            src={`http://127.0.0.1:8000${srcRight}`}
+            alt={titleRight}
+            className="w-full h-auto object-contain rounded-md"
+          />
+        </div>
+      )}
     </div>
   );
 }

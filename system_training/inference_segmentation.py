@@ -12,6 +12,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from torchvision import transforms
 import plotly.graph_objects as go
+
+# === Grad-CAM Configuration ===
+GRADCAM_TARGET_LAYER = 'features[-1]'  # Default target layer name in MobileNetV2
+GRADCAM_PERCENTILE = 75  # Keep top 25% activations
+SAVE_DEBUG = True  # Save raw/normalized/thresholded maps
+
 from database import save_patient
 from datetime import datetime
 
@@ -59,7 +65,18 @@ def run_pipeline():
     # -------------------------
     # GRAD-CAM IMPLEMENTATION
     # -------------------------
-    def generate_gradcam(model, input_tensor, target_class):
+    def generate_gradcam(model, input_tensor, target_class, target_layer_name=GRADCAM_TARGET_LAYER):
+        """Generate Grad‑CAM for a given *model* and *input_tensor*.
+
+        Args:
+            model: The classification model (e.g., MobileNetV2).
+            input_tensor: Pre‑processed tensor of shape (1, C, H, W).
+            target_class: Index of the class to visualize.
+            target_layer_name: String representing the attribute path to the last
+                convolutional layer. Defaults to GRADCAM_TARGET_LAYER.
+        Returns:
+            A 2‑D numpy array (H, W) with values in [0, 1].
+        """
         gradients = []
         activations = []
 
@@ -69,8 +86,12 @@ def run_pipeline():
         def forward_hook(module, input, output):
             activations.append(output)
 
-        #  Correct layer (last conv layer)
-        target_layer = model.features[-1]
+        # Resolve target layer from the provided name (e.g., 'features[-1]')
+        try:
+            target_layer = eval(f"model.{target_layer_name}")
+        except Exception as e:
+            print(f"[WARN] Unable to resolve Grad‑CAM layer '{target_layer_name}': {e}. Falling back to model.features[-1].")
+            target_layer = model.features[-1]
 
         handle_f = target_layer.register_forward_hook(forward_hook)
         handle_b = target_layer.register_full_backward_hook(backward_hook)
@@ -82,10 +103,10 @@ def run_pipeline():
         model.zero_grad()
         loss.backward()
 
-        #  Safe handling
+        # Safe handling
         if not gradients or not activations:
             return np.zeros((input_tensor.shape[2], input_tensor.shape[3]))
-    
+
         grads = gradients[0].detach()
         acts = activations[0].detach()
 
@@ -94,17 +115,71 @@ def run_pipeline():
 
         cam = F.relu(cam)
 
-        # ✅ Safe normalization
+        # Normalization to [0, 1]
         if cam.max() != cam.min():
             cam = (cam - cam.min()) / (cam.max() - cam.min())
         else:
-            cam = np.zeros_like(cam)
+            cam = torch.zeros_like(cam)
 
         handle_f.remove()
         handle_b.remove()
 
         return cam.cpu().numpy()
     print(" Classification model loaded")
+
+# ------------------------------------------------------------------
+# Helper utilities for Grad‑CAM diagnostics
+# ------------------------------------------------------------------
+
+    def save_gradcam_debug(raw_cam, image_shape):
+        """Save raw, normalized, and thresholded Grad‑CAM maps.
+
+        Args:
+            raw_cam (np.ndarray): Cam normalized to [0, 1] with original size.
+            image_shape (tuple): (height, width) of the original image.
+        """
+        # Ensure cam matches original image size (may already be resized later)
+        if raw_cam.shape != image_shape:
+            cam_resized = cv2.resize(raw_cam, (image_shape[1], image_shape[0]))
+        else:
+            cam_resized = raw_cam
+
+        # Raw map (grayscale 0‑255)
+        raw_path = os.path.join('outputs', 'gradcam_raw.png')
+        cv2.imwrite(raw_path, (cam_resized * 255).astype('uint8'))
+
+        # Normalized map (after percentile clipping)
+        thresh_val = np.percentile(cam_resized, GRADCAM_PERCENTILE)
+        cam_thresh = np.where(cam_resized >= thresh_val, cam_resized, 0)
+        norm_path = os.path.join('outputs', 'gradcam_norm.png')
+        cv2.imwrite(norm_path, (cam_thresh * 255).astype('uint8'))
+
+        # Thresholded binary map for overlap computation
+        bin_path = os.path.join('outputs', 'gradcam_thresh.png')
+        binary = (cam_thresh > 0).astype('uint8') * 255
+        cv2.imwrite(bin_path, binary)
+
+        return cam_resized, cam_thresh
+
+
+    def compute_cam_mask_overlap(cam, mask):
+        """Compute percentage of Grad‑CAM activation inside vs outside the lesion mask.
+
+        Both *cam* and *mask* must be same spatial dimensions.
+        Returns (inside_pct, outside_pct).
+        """
+        if cam.shape != mask.shape:
+            cam_resized = cv2.resize(cam, (mask.shape[1], mask.shape[0]))
+        else:
+            cam_resized = cam
+        total_activation = cam_resized.sum()
+        if total_activation == 0:
+            return 0.0, 0.0
+        inside_activation = (cam_resized * mask).sum()
+        outside_activation = total_activation - inside_activation
+        inside_pct = (inside_activation / total_activation) * 100
+        outside_pct = (outside_activation / total_activation) * 100
+        return inside_pct, outside_pct
     # -------------------------
     # PREPROCESSING
     # -------------------------
@@ -159,7 +234,7 @@ def run_pipeline():
     patient_id = None
     name = None
     age = None
-    if __name__ == "__main__":
+    if sys.stdin.isatty():
         patient_id = input("Enter Patient ID: ")
         name = input("Enter Patient Name: ")
         age = int(input("Enter Patient Age: "))
@@ -167,22 +242,20 @@ def run_pipeline():
         if age < 1 or age > 120:
             print("Invalid age entered")
             raise Exception("Process stopped")
+    else:
+        pass
     # -------------------------
     # CLINICAL SYMPTOMS INPUT
     # -------------------------
-    if __name__ == "__main__":
-
+    # Interactive prompts are only for manual runs
+    if __name__ == "__main__" and sys.stdin.isatty():
         print("\n===== PATIENT SYMPTOMS =====")
-
         itching = yes_no_input("Is there itching?")
         pain = yes_no_input("Is there pain?")
         bleeding = yes_no_input("Any bleeding?")
         oozing = yes_no_input("Any fluid discharge (oozing)?")
-
         print("\n--- Lesion History ---")
-
         duration = input("How long has the lesion been present? (e.g., 2 weeks / 3 months): ")
-
         growth = yes_no_input("Has the lesion increased in size?")
         color_change = yes_no_input("Any change in color?")
         border_change = yes_no_input("Do the borders look irregular?")
@@ -229,10 +302,18 @@ def run_pipeline():
     if image_cv is None:
         raise Exception("Failed to load image. Check file path or format.")
 
+    # Debug: original image size
+    print(f"Original image size: {image_cv.shape[0]}x{image_cv.shape[1]}")
+
     image_cv = preprocess_image(image_cv)
+
+    # Debug: preprocessed image size
+    print(f"Preprocessed image size: {image_cv.shape[0]}x{image_cv.shape[1]}")
 
     image = Image.fromarray(cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB))
     image_np = np.array(image)
+    # Save original for debugging
+    cv2.imwrite(os.path.join('outputs', 'debug_original.png'), cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB))
     # -------------------------
     # IMAGE QUALITY CHECK
     # -------------------------
@@ -261,17 +342,33 @@ def run_pipeline():
     with torch.no_grad():
         output = model(input_tensor)
 
-    mask = output.squeeze().cpu().numpy()
+    # Debug: raw model output shape and stats
+    print(f"Raw model output shape: {output.shape}")
+    raw_output = output.squeeze().cpu().numpy()
+    print(f"Raw output min: {raw_output.min()}, max: {raw_output.max()}, mean: {raw_output.mean()}")
+    # Save raw probability map for debugging
+    plt.figure(figsize=(6,6))
+    plt.imshow(raw_output, cmap='viridis')
+    plt.axis('off')
+    plt.title('Raw Probability Map')
+    plt.savefig(os.path.join('outputs', 'debug_raw_map.png'), bbox_inches='tight')
+    plt.close()
 
-    # -------------------------
-    # THRESHOLD
-    # -------------------------
-    # DEBUG (add this above threshold)
+    mask = raw_output
 
-    # FIXED threshold
-    print("Mask stats:", "min:", float(mask.min()), "max:", float(mask.max()), "mean:", float(mask.mean()))
+    # Initial binary mask (threshold will be applied later)
+    binary_initial = (mask > 0).astype(np.uint8)
+    cv2.imwrite(os.path.join('outputs', 'debug_binary_initial.png'), binary_initial*255)
+
+    # Apply threshold as before
     threshold = np.clip(np.mean(mask), 0.2, 0.6)
+    print(f"Threshold for mask generation: {threshold:.4f}")
     mask = (mask > threshold).astype(np.uint8)
+    cv2.imwrite(os.path.join('outputs', 'debug_binary_final.png'), mask*255)
+
+    # Debug: non‑zero pixel count
+    nonzero = int(np.sum(mask))
+    print(f"Non‑zero mask pixels after threshold: {nonzero}")
 
     mask = cv2.medianBlur(mask.astype(np.uint8), 5)
     # -------------------------
@@ -279,6 +376,9 @@ def run_pipeline():
     # -------------------------
     kernel = np.ones((5,5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    # Debug: mask after morphological cleaning
+    cv2.imwrite(os.path.join('outputs', 'debug_mask_clean.png'), mask*255)
 
     # fill holes
     mask_uint8 = (mask * 255).astype(np.uint8)
@@ -295,6 +395,11 @@ def run_pipeline():
     if num_labels > 1:
         largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
         mask = (labels == largest).astype("uint8")
+
+    # Debug: final mask stats
+    final_pixels = int(np.sum(mask))
+    print(f"Final mask non‑zero pixels: {final_pixels}")
+    cv2.imwrite(os.path.join('outputs', 'debug_final_mask.png'), mask*255)
 
     # -------------------------
     # VALIDATION + FALLBACK
@@ -329,11 +434,16 @@ def run_pipeline():
     # -------------------------
     coords = np.column_stack(np.where(mask > 0))
 
+    print(f"Coords array length: {len(coords)}")
     if len(coords) == 0:
-        raise Exception("No lesion found for classification")
-    if np.sum(mask) == 0:
-        print(" Mask empty → fallback")
+        # Debug fallback: attempt simple threshold segmentation
+        print("Coords empty – invoking fallback segmentation")
         mask = fallback_segmentation(image_np)
+        coords = np.column_stack(np.where(mask > 0))
+        print(f"Fallback mask non‑zero pixels: {int(np.sum(mask))}")
+        if len(coords) == 0:
+            raise Exception("No lesion found for classification after fallback")
+
     y_min, x_min = coords.min(axis=0)
     y_max, x_max = coords.max(axis=0)
     # Add padding for better context
@@ -344,6 +454,11 @@ def run_pipeline():
     x_min = max(0, x_min - pad)
     x_max = min(image_np.shape[1], x_max + pad)
     cropped = image_np[y_min:y_max, x_min:x_max]
+
+    # Debug: bounding box coordinates
+    print(f"Bounding box: y[{y_min}:{y_max}], x[{x_min}:{x_max}]")
+    # Save crop for inspection
+    cv2.imwrite(os.path.join('outputs', 'debug_crop.png'), cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
 
     if cropped.size == 0:
         raise Exception("Invalid crop for classification")
@@ -424,6 +539,10 @@ def run_pipeline():
     # GENERATE GRAD-CAM
     # -------------------------
     cam = generate_gradcam(classifier, cls_input, pred.item())
+    # Save diagnostics and compute overlap
+    cam_resized, cam_thresh = save_gradcam_debug(cam, image_np.shape[:2])
+    inside_pct, outside_pct = compute_cam_mask_overlap(cam_thresh, mask)
+    print(f"Grad‑CAM overlap – inside lesion: {inside_pct:.1f}% , outside: {outside_pct:.1f}%")
 
     # -------------------------
     # OVERLAY
@@ -465,8 +584,13 @@ def run_pipeline():
     # GRAD-CAM VISUALIZATION
     # -------------------------
     cam_resized = cv2.resize(cam, (image_np.shape[1], image_np.shape[0]))
-    heatmap = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
-
+    # Apply percentile threshold to focus on strongest activations
+    thresh_val = np.percentile(cam_resized, GRADCAM_PERCENTILE)
+    cam_vis = np.where(cam_resized >= thresh_val, cam_resized, 0)
+    # Optionally mask with lesion area to suppress background
+    if mask.shape == cam_vis.shape:
+        cam_vis = cam_vis * mask
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam_vis), cv2.COLORMAP_JET)
     heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
     overlay_cam = cv2.addWeighted(image_np, 0.6, heatmap, 0.4, 0)
     cv2.imwrite("outputs/gradcam_overlay.png", cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
@@ -497,16 +621,10 @@ def run_pipeline():
     dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
 
     if dist.max() == 0:
-        raise Exception("Depth computation failed")
-
-        # Normalize
-        depth_raw = dist / dist.max()
-    if dist.max() == 0:
         depth_raw = np.zeros_like(dist)
     else:
         depth_raw = dist / dist.max()
 
-    depth = depth_raw.copy()
     depth = depth_raw.copy()
     # Save RAW grayscale (important)
     depth_raw_img = (depth_raw * 255).astype("uint8")
@@ -855,7 +973,19 @@ def run_pipeline():
             "max_depth": float(max_depth),
             "mean_depth": float(mean_depth),
             "alerts": [str(a) for a in alerts],
-            "action": action
+            "action": action,
+            "symptoms": {
+                "itching": itching,
+                "pain": pain,
+                "bleeding": bleeding,
+                "oozing": oozing
+            },
+            "history": {
+                "duration": duration,
+                "growth": growth,
+                "color_change": color_change,
+                "border_change": border_change
+            }
         }
     }
 

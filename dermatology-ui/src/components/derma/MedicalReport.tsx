@@ -1,8 +1,25 @@
 import { FileText, Download } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 interface Props {
   report: string;
   loading?: boolean;
+  classification?: {
+    label: string;
+    confidence: number;
+    risk: string;
+  };
+  wolfram?: {
+    severity_score: number;
+    risk_index: number;
+    mathematical_analysis: {
+      circularity: number;
+      border_asymmetry: number;
+      fractal_dimension: number;
+      lesion_density: number;
+      aspect_ratio: number;
+    };
+  };
 }
 
 export default function MedicalReport({ report, loading }: Props) {

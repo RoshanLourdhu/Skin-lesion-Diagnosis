@@ -11,6 +11,7 @@ import re
 import threading
 
 from ollama_report import generate_medical_report
+from wolfram_service import get_wolfram_analysis
 
 # -------------------------
 # INIT
@@ -57,15 +58,28 @@ def clear_dir(folder):
 # JSON PARSER
 # -------------------------
 def extract_json(stdout):
-    try:
-        matches = re.findall(r"\{.*?\}", stdout, re.DOTALL)
-        for m in reversed(matches):
+    # Try finding a line that is valid JSON and contains "classification"
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{") and line.endswith("}"):
             try:
-                return json.loads(m)
+                data = json.loads(line)
+                if isinstance(data, dict) and "classification" in data:
+                    return data
             except:
                 continue
+    # Fallback to finding block starting with '{"metrics":'
+    try:
+        start_idx = stdout.find('{"metrics":')
+        if start_idx != -1:
+            end_idx = stdout.rfind('}')
+            if end_idx != -1 and end_idx > start_idx:
+                try:
+                    return json.loads(stdout[start_idx:end_idx+1])
+                except:
+                    pass
     except Exception as e:
-        print("JSON parse error:", e)
+        print("Fallback JSON parse error:", e)
     return {}
 
 # -------------------------
@@ -107,6 +121,7 @@ async def analyze(
     border_change: str = Form("n"),
 ):
     try:
+        print("STEP 1: /analyze request received")
         clear_dir(IMG_DIR)
 
         if os.path.exists(REPORT_FILE):
@@ -116,6 +131,7 @@ async def analyze(
         img_path = os.path.join(IMG_DIR, "input.jpg")
         with open(img_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        print("STEP 2: Image saved to", img_path)
 
         # CLI input
         cli_input = "\n".join([
@@ -125,8 +141,9 @@ async def analyze(
             "n"
         ]) + "\n"
 
-        print("Running inference...")
+        print("STEP 3: Starting inference subprocess")
 
+        # Run inference
         # Run inference
         proc = subprocess.Popen(
             ["python", os.path.join(BASE_DIR, "inference_segmentation.py")],
@@ -135,9 +152,13 @@ async def analyze(
             stderr=subprocess.PIPE,
             text=True
         )
-
+        print("STEP 4: Subprocess started, waiting for completion")
         stdout, stderr = proc.communicate(input=cli_input)
-
+        print("STEP 5: Subprocess finished with returncode", proc.returncode)
+        if stderr:
+            print("INFERENCE STDERR:\n", stderr)
+        else:
+            print("INFERENCE STDERR empty")
         print("RAW STDOUT:\n", stdout)
 
         if stderr:
@@ -159,6 +180,15 @@ async def analyze(
         alerts = parsed.get("alerts", [])
         report_input = parsed.get("report_input", {})
 
+        # Wolfram analysis
+        print("STEP 7: Starting Wolfram analysis")
+        try:
+            wolfram_analysis = get_wolfram_analysis(classification, metrics)
+            print("STEP 8: Wolfram analysis completed")
+        except Exception as e:
+            print("WOLFRAM ANALYSIS ERROR:", e)
+            wolfram_analysis = None
+
         # Save patient
         save_patient({
             "patient_id": patient_id,
@@ -175,17 +205,19 @@ async def analyze(
             "confidence": classification.get("confidence"),
             "risk": classification.get("risk"),
             "report": "PENDING",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "wolfram_analysis": json.dumps(wolfram_analysis) if wolfram_analysis else None
         })
 
         # Start report thread
+        print("STEP 9: Starting report generation thread")
         if report_input:
             threading.Thread(
                 target=generate_report_async,
                 args=(report_input,),
                 daemon=True
             ).start()
-
+        print("STEP 10: Returning API response")
         return {
             "classification": {
                 "label": classification.get("label", "N/A"),
@@ -195,6 +227,7 @@ async def analyze(
             "metrics": metrics,
             "alerts": alerts,
             "report_status": "processing",
+            "wolfram_analysis": wolfram_analysis,
             "images": {
                 "segmentation": "/static/segmentation.png",
                 "gradcam": "/static/gradcam.png",
@@ -205,6 +238,7 @@ async def analyze(
                 "three_d": "/static/3d_interactive.html"
             }
         }
+
 
     except Exception as e:
         print("API ERROR:", e)

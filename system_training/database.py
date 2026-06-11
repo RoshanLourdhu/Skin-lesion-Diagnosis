@@ -20,7 +20,6 @@ def init_db():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS patients (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id TEXT,
         name TEXT,
         age INTEGER,
@@ -35,9 +34,17 @@ def init_db():
         confidence REAL,
         risk TEXT,
         report TEXT,
-        date TEXT
+        date TEXT,
+        wolfram_analysis TEXT
     )
     """)
+    
+    # Run migrations for existing databases that don't have the wolfram_analysis column
+    try:
+        cursor.execute("ALTER TABLE patients ADD COLUMN wolfram_analysis TEXT")
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
 
     conn.commit()
     conn.close()
@@ -56,9 +63,9 @@ def save_patient(data):
         area, perimeter, roughness, volume,
         max_depth, mean_depth,
         classification, confidence, risk,
-        report, date
+        report, date, wolfram_analysis
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data.get("patient_id"),
         data.get("name"),
@@ -74,7 +81,8 @@ def save_patient(data):
         data.get("confidence"),
         data.get("risk"),
         data.get("report"),
-        data.get("date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        data.get("date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        data.get("wolfram_analysis")
     ))
 
     conn.commit()
@@ -91,9 +99,12 @@ def update_report(patient_id, report):
     cursor.execute("""
     UPDATE patients
     SET report = ?
-    WHERE patient_id = ?
-    ORDER BY date DESC
-    LIMIT 1
+    WHERE rowid = (
+        SELECT rowid FROM patients
+        WHERE patient_id = ?
+        ORDER BY date DESC
+        LIMIT 1
+    )
     """, (report, patient_id))
 
     conn.commit()

@@ -148,7 +148,8 @@ IMPORTANT RULES:
                     "temperature": 0.2,
                     "num_predict": 300
                 }
-            }
+            },
+            timeout=30
         )
 
         if response.status_code == 200:
