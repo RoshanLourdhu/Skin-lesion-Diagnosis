@@ -581,32 +581,87 @@ def run_pipeline():
     plt.savefig("outputs/segmentation.png", bbox_inches='tight')
     plt.close()
     # -------------------------
-    # GRAD-CAM VISUALIZATION
+    # GRAD-CAM VISUALIZATION & COORDINATE-SPACE AUDIT
     # -------------------------
-    cam_resized = cv2.resize(cam, (image_np.shape[1], image_np.shape[0]))
-    # Apply percentile threshold to focus on strongest activations
-    thresh_val = np.percentile(cam_resized, GRADCAM_PERCENTILE)
-    cam_vis = np.where(cam_resized >= thresh_val, cam_resized, 0)
-    # Optionally mask with lesion area to suppress background
-    if mask.shape == cam_vis.shape:
-        cam_vis = cam_vis * mask
-    heatmap = cv2.applyColorMap(np.uint8(255 * cam_vis), cv2.COLORMAP_JET)
-    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-    overlay_cam = cv2.addWeighted(image_np, 0.6, heatmap, 0.4, 0)
-    cv2.imwrite("outputs/gradcam_overlay.png", cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
-    plt.figure(figsize=(12,4))
+    print("\n===== GRAD-CAM COORDINATE-SPACE AUDIT =====")
+    print(f"Original image shape: {image_np.shape}")
+    print(f"Segmentation mask shape: {mask.shape}")
+    print(f"Lesion crop shape: {cropped.shape}")
+    print(f"Bounding box: ymin={y_min}, ymax={y_max}, xmin={x_min}, xmax={x_max}")
+    print(f"Classifier input shape: {cls_input.shape}")
+    print(f"CAM dimensions before resize: {cam.shape}")
 
-    plt.subplot(1,3,1)
+    # 1. Resize CAM to the exact lesion crop size
+    crop_height = y_max - y_min
+    crop_width = x_max - x_min
+    cam_resized_to_crop = cv2.resize(cam, (crop_width, crop_height), interpolation=cv2.INTER_LINEAR)
+    print(f"CAM dimensions after resize to crop: {cam_resized_to_crop.shape}")
+
+    # 2. Project CAM back into original image dimensions
+    cam_projected = np.zeros(image_np.shape[:2], dtype=np.float32)
+    cam_projected[y_min:y_max, x_min:x_max] = cam_resized_to_crop
+    print(f"CAM projected to original shape: {cam_projected.shape}")
+
+    # 3. Save diagnostic outputs as requested
+    cv2.imwrite(os.path.join('outputs', 'cam_raw.png'), np.uint8(255 * cam))
+    cv2.imwrite(os.path.join('outputs', 'cam_resized_to_crop.png'), np.uint8(255 * cam_resized_to_crop))
+    cv2.imwrite(os.path.join('outputs', 'cam_projected_to_original.png'), np.uint8(255 * cam_projected))
+
+    # 4. Generate Non-Thresholded Overlay (Smooth Blend)
+    heatmap_non_thresh = cv2.applyColorMap(np.uint8(255 * cam_projected), cv2.COLORMAP_JET)
+    heatmap_non_thresh = cv2.cvtColor(heatmap_non_thresh, cv2.COLOR_BGR2RGB)
+    
+    # Smooth blend that keeps healthy skin clean
+    alpha = 0.45 * cam_projected
+    alpha_3d = np.expand_dims(alpha, axis=-1)
+    overlay_cam = (image_np * (1.0 - alpha_3d) + heatmap_non_thresh * alpha_3d).astype(np.uint8)
+    cv2.imwrite(os.path.join('outputs', 'cam_overlay_final.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join('outputs', 'gradcam_overlay.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join('outputs', 'attention.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
+    print(f"Overlay image shape: {overlay_cam.shape}")
+
+    # 5. Generate Thresholded Overlay for comparison
+    thresh_val = np.percentile(cam_resized_to_crop, GRADCAM_PERCENTILE)
+    cam_vis_crop = np.where(cam_resized_to_crop >= thresh_val, cam_resized_to_crop, 0.0)
+    
+    # Project thresholded CAM back to original size
+    cam_projected_thresh = np.zeros(image_np.shape[:2], dtype=np.float32)
+    cam_projected_thresh[y_min:y_max, x_min:x_max] = cam_vis_crop
+    
+    # Apply thresholded heatmap
+    heatmap_thresh = cv2.applyColorMap(np.uint8(255 * cam_projected_thresh), cv2.COLORMAP_JET)
+    heatmap_thresh = cv2.cvtColor(heatmap_thresh, cv2.COLOR_BGR2RGB)
+    
+    # Solid background blend or masked blend
+    # Multiply by mask to focus on lesion structure
+    if mask.shape == cam_projected_thresh.shape:
+        cam_projected_thresh_masked = cam_projected_thresh * mask
+    else:
+        cam_projected_thresh_masked = cam_projected_thresh
+    
+    heatmap_thresh_masked = cv2.applyColorMap(np.uint8(255 * cam_projected_thresh_masked), cv2.COLORMAP_JET)
+    heatmap_thresh_masked = cv2.cvtColor(heatmap_thresh_masked, cv2.COLOR_BGR2RGB)
+    
+    alpha_thresh = 0.45 * cam_projected_thresh_masked
+    alpha_thresh_3d = np.expand_dims(alpha_thresh, axis=-1)
+    overlay_thresh = (image_np * (1.0 - alpha_thresh_3d) + heatmap_thresh_masked * alpha_thresh_3d).astype(np.uint8)
+    
+    cv2.imwrite(os.path.join('outputs', 'cam_overlay_thresholded.png'), cv2.cvtColor(overlay_thresh, cv2.COLOR_RGB2BGR))
+
+    # 6. Save the 3-panel display
+    plt.figure(figsize=(12, 4))
+
+    plt.subplot(1, 3, 1)
     plt.imshow(image_np)
     plt.title("Original Image")
     plt.axis("off")
 
-    plt.subplot(1,3,2)
-    plt.imshow(cam_resized, cmap='jet')
+    plt.subplot(1, 3, 2)
+    plt.imshow(cam_projected, cmap='jet')
     plt.title("Grad-CAM Heatmap")
     plt.axis("off")
 
-    plt.subplot(1,3,3)
+    plt.subplot(1, 3, 3)
     plt.imshow(overlay_cam)
     plt.title("Attention Overlay")
     plt.axis("off")
