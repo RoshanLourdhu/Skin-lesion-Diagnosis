@@ -82,37 +82,28 @@ export default function MedicalReport({ report, loading }: Props) {
           <div className="space-y-4 text-sm leading-relaxed">
 
             {report.split("\n").map((line, i) => {
-
+              // Determine styling based on markdown-like headings
+              const trimmed = line.trim();
+              if (trimmed.startsWith("# ")) {
+                return <h1 key={i} className="text-2xl font-bold text-cyan-300">{trimmed.substring(2)}</h1>;
+              }
+              if (trimmed.startsWith("## ")) {
+                return <h2 key={i} className="text-xl font-semibold text-cyan-200 mt-4">{trimmed.substring(3)}</h2>;
+              }
+              if (trimmed.startsWith("### ")) {
+                return <h3 key={i} className="text-lg font-medium text-cyan-200 mt-2">{trimmed.substring(4)}</h3>;
+              }
               // Highlight important sections
-              if (line.toLowerCase().includes("classification")) {
-                return (
-                  <div key={i} className="text-green-400 font-semibold">
-                    {line}
-                  </div>
-                );
+              if (trimmed.toLowerCase().includes("diagnosis")) {
+                return <div key={i} className="text-green-400 font-semibold">{line}</div>;
               }
-
-              if (line.toLowerCase().includes("risk")) {
-                return (
-                  <div key={i} className="text-red-400 font-semibold">
-                    {line}
-                  </div>
-                );
+              if (trimmed.toLowerCase().includes("risk")) {
+                return <div key={i} className="text-red-400 font-semibold">{line}</div>;
               }
-
-              if (line.toLowerCase().includes("recommendation")) {
-                return (
-                  <div key={i} className="text-yellow-300 font-semibold">
-                    {line}
-                  </div>
-                );
+              if (trimmed.toLowerCase().includes("recommendation")) {
+                return <div key={i} className="text-yellow-300 font-semibold">{line}</div>;
               }
-
-              return (
-                <div key={i} className="text-gray-300">
-                  {line}
-                </div>
-              );
+              return <div key={i} className="text-gray-300">{line}</div>;
             })}
 
           </div>

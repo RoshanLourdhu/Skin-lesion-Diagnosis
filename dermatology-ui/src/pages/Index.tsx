@@ -177,7 +177,7 @@ export default function Index() {
 
       <Header />
 
-      <div className="w-full px-10 py-12 space-y-12">
+      <div className="w-full px-10 py-12 space-y-8">
 
         {/* HERO */}
         <div className="text-center space-y-6">
@@ -188,16 +188,17 @@ export default function Index() {
 
         {/* FORM */}
         <div className="grid md:grid-cols-2 gap-8">
+          {/* Left Column: Patient Details */}
           <PatientDetailsForm data={patient} onChange={handlePatientChange} />
-          <SymptomsSelector selected={symptoms} onToggle={handleToggle} />
-        </div>
 
-        {/* IMAGE */}
-        <ImageUploader file={file} preview={preview} onFile={handleFile} />
-
-        {/* BUTTON */}
-        <div className="flex justify-center">
-          <RunAnalysisButton loading={loading} disabled={!file} onClick={runAnalysis} />
+          {/* Right Column: Symptoms, Image Upload, Run Button */}
+          <div className="flex flex-col gap-6">
+            <SymptomsSelector selected={symptoms} onToggle={handleToggle} />
+            <ImageUploader file={file} preview={preview} onFile={handleFile} />
+            <div className="flex justify-center">
+              <RunAnalysisButton loading={loading} disabled={!file} onClick={runAnalysis} />
+            </div>
+          </div>
         </div>
 
         {/* RESULTS */}
@@ -222,7 +223,7 @@ export default function Index() {
 
             <WolframClinicalIntelligence analysis={result.wolfram_analysis} loading={loading} classification={result.classification} />
 
-            <div className="grid lg:grid-cols-3 gap-6">
+            <div className="grid lg:grid-cols-3 gap-6 items-start">
 
               <MedicalReport report={report} loading={loading} />
 
@@ -249,13 +250,24 @@ export default function Index() {
 
 function MetricsPanel({ metrics }: any) {
   if (!metrics) return null;
+
+  const area = Number(metrics.area_px || 0).toLocaleString();
+  const perimeter = Number(metrics.perimeter_px || 0).toLocaleString();
+  const roughness = Number(metrics.roughness || 0).toFixed(2);
+  const volume = Number(metrics.volume || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
   return (
     <div className="glass-card p-6">
-      <h3>Metrics</h3>
-      <p>Area: {metrics.area_px}</p>
-      <p>Perimeter: {metrics.perimeter_px}</p>
-      <p>Roughness: {metrics.roughness}</p>
-      <p>Volume: {metrics.volume}</p>
+      <h3 className="text-lg font-bold mb-4 text-cyan-400">Metrics</h3>
+      <div className="space-y-3 text-sm">
+        <p className="text-gray-300"><span className="font-semibold text-white">Area:</span> {area} px²</p>
+        <p className="text-gray-300"><span className="font-semibold text-white">Perimeter:</span> {perimeter} px</p>
+        <p className="text-gray-300"><span className="font-semibold text-white">Roughness Index:</span> {roughness}</p>
+        <p className="text-gray-300"><span className="font-semibold text-white">Volume Estimate:</span> {volume} units³</p>
+      </div>
     </div>
   );
 }
@@ -264,13 +276,22 @@ function HistoryPanel({ history, onSelect }: any) {
   if (!history.length) return null;
 
   return (
-    <div className="glass-card p-6">
-      <h3>History</h3>
-      {history.map((h: any, i: number) => (
-        <div key={i} onClick={() => onSelect(h)}>
-          {h[14]} - {h[10]}
-        </div>
-      ))}
+    <div className="glass-card p-6 h-[320px] flex flex-col">
+      <h3 className="text-lg font-bold mb-4 text-cyan-400">History</h3>
+      <div className="overflow-y-auto flex-grow space-y-2 pr-1">
+        {history.map((h: any, i: number) => (
+          <div
+            key={i}
+            onClick={() => onSelect(h)}
+            className="p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/30 cursor-pointer transition flex items-center justify-between"
+          >
+            <span className="text-xs text-gray-300">{h[14]}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
+              {h[10]}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

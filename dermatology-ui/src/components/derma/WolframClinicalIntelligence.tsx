@@ -64,7 +64,7 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
   const RiskIcon = riskMeta.icon;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6 section-fade">
+    <div className="w-full mx-auto space-y-8 section-fade">
       
       {/* Diagnosis Section */}
       {classification && (
@@ -113,7 +113,7 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Severity & Risk gauges */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -183,7 +183,7 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
         </div>
 
         {/* Clinical Interpretation & Insights */}
-        <div className="glass-card p-6 flex flex-col justify-between border-l-2 border-l-accent/60">
+        <div className="glass-card p-6 flex flex-col justify-between border-l-2 border-l-accent/60 mt-8">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 border-b border-border/40 pb-3">
             <Activity className="w-4 h-4 text-accent" />
             Wolfram clinical Interpretation & insights
@@ -210,7 +210,7 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Mathematical Analysis */}
-        <div className="glass-card p-6 space-y-5">
+        <div className="glass-card p-6 space-y-5 mt-8">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground font-semibold border-b border-border/40 pb-3">
             <Sigma className="w-4 h-4 text-primary" />
             Mathematical Lesion Analysis (Geometry)
@@ -225,7 +225,7 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
                 <Compass className="w-3.5 h-3.5 text-primary/70" />
               </div>
               <p className="text-lg font-bold glow-text">{analysis.mathematical_analysis.circularity}</p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Perfect circle = 1.0. Lower values indicate high asymmetry.</p>
+              <p className="text-[10px] text-muted-foreground/80 mt-1">Circularity</p>
             </div>
 
             {/* Border Asymmetry */}
@@ -235,21 +235,21 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
                 <Layers className="w-3.5 h-3.5 text-primary/70" />
               </div>
               <p className="text-lg font-bold glow-text">{analysis.mathematical_analysis.border_asymmetry}</p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Circularity deviation factor. Measures outline irregularity.</p>
+              <p className="text-[10px] text-muted-foreground/80 mt-1">Shape Irregularity</p>
             </div>
 
             {/* Fractal Dimension */}
             <div className="bg-secondary/25 p-3.5 rounded-xl border border-border/40">
               <div className="text-xs text-muted-foreground mb-1">Fractal Dimension</div>
               <p className="text-lg font-bold glow-text">{analysis.mathematical_analysis.fractal_dimension}</p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Boundary complexity scaling. Typical lesions: 1.1 to 1.6.</p>
+              <p className="text-[10px] text-muted-foreground/80 mt-1">Boundary Complexity</p>
             </div>
 
             {/* Depth Aspect Ratio */}
             <div className="bg-secondary/25 p-3.5 rounded-xl border border-border/40">
               <div className="text-xs text-muted-foreground mb-1">Depth Aspect Ratio</div>
               <p className="text-lg font-bold glow-text">{analysis.mathematical_analysis.aspect_ratio.toFixed(4)}</p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Ratio of vertical penetration depth to lateral radius.</p>
+              <p className="text-[10px] text-muted-foreground/80 mt-1">Depth-to-Width Ratio</p>
             </div>
 
           </div>
@@ -316,13 +316,12 @@ export default function WolframClinicalIntelligence({ analysis, loading, classif
 
           </div>
 
-          <div className="text-[10px] text-muted-foreground/80 leading-relaxed bg-secondary/20 p-3 rounded-lg border border-border/30">
-            <strong>Benchmark Models:</strong> Area is modeled using a Log-Normal distribution ($\mu=8.5, \sigma=1.2$). Depth is evaluated against a Beta distribution ($\alpha=2.5, \beta=5.0$) normalized to typical clinical margins.
+          
           </div>
         </div>
 
       </div>
 
-    </div>
+
   );
 }

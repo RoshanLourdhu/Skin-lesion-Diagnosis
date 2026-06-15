@@ -1,15 +1,96 @@
 import requests
+import subprocess
+import time
 
 # -------------------------
-# HELPER FUNCTION
+# HELPER FUNCTIONS
 # -------------------------
+
 def bool_to_text(value):
     return "Yes" if value else "No"
+
+OLLAMA_URL = "http://localhost:11434"
+TAGS_ENDPOINT = f"{OLLAMA_URL}/api/tags"
+GENERATE_ENDPOINT = f"{OLLAMA_URL}/api/generate"
+
+def is_ollama_running() -> bool:
+    """Check if Ollama server is responding at the tags endpoint."""
+    try:
+        resp = requests.get(TAGS_ENDPOINT, timeout=2)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+def start_ollama_server() -> None:
+    """Attempt to start Ollama server in background.
+    Assumes `ollama` executable is in PATH.
+    """
+    try:
+        # Start without blocking the current process.
+        subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        # If starting fails, we will handle later.
+        print(f"Failed to start Ollama server: {e}")
+
+def ensure_ollama_running(max_wait_seconds: int = 30) -> bool:
+    """Make sure Ollama is running, start it if needed, and wait until reachable.
+    Returns True if reachable, False otherwise.
+    """
+    if is_ollama_running():
+        return True
+    # Try to start the server.
+    start_ollama_server()
+    # Poll until reachable or timeout.
+    start_time = time.time()
+    while time.time() - start_time < max_wait_seconds:
+        if is_ollama_running():
+            return True
+        time.sleep(2)
+    return False
+
+def fallback_report(data: dict) -> str:
+    """Generate a simple text fallback report when Ollama is unavailable.
+    This mirrors the structure of the desired report but without AI generation.
+    """
+    lines = []
+    lines.append("--- FALLBACK CLINICAL REPORT ---")
+    lines.append(f"Classification: {data.get('class', 'N/A')}")
+    lines.append(f"Confidence Level: {data.get('confidence', 'N/A')}")
+    lines.append(f"Risk Level: {data.get('risk', 'N/A')}")
+    lines.append("")
+    lines.append("Morphology:")
+    lines.append(f"- Area: {data.get('area', 'N/A')}")
+    lines.append(f"- Perimeter: {data.get('perimeter', 'N/A')}")
+    lines.append(f"- Roughness: {data.get('roughness', 'N/A')}")
+    lines.append("")
+    lines.append("Depth:")
+    lines.append(f"- Max Depth: {data.get('max_depth', 'N/A')}")
+    lines.append(f"- Mean Depth: {data.get('mean_depth', 'N/A')}")
+    lines.append("")
+    lines.append("Patient Symptoms:")
+    symptoms = data.get('symptoms', {})
+    for name, val in symptoms.items():
+        lines.append(f"- {name.capitalize()}: {bool_to_text(val)}")
+    lines.append("")
+    lines.append("Lesion History:")
+    history = data.get('history', {})
+    for name, val in history.items():
+        lines.append(f"- {name.replace('_', ' ').capitalize()}: {val}")
+    lines.append("")
+    lines.append(f"Alerts: {data.get('alerts', '')}")
+    lines.append(f"Recommended Action: {data.get('action', '')}")
+    lines.append("--- END OF FALLBACK REPORT ---")
+    return "\n".join(lines)
 
 # -------------------------
 # MAIN FUNCTION
 # -------------------------
+
 def generate_medical_report(data):
+    """Generate a medical report using Ollama LLM, with fallback if Ollama is unavailable."""
+    if not ensure_ollama_running():
+        # Ollama not reachable after attempts; return fallback.
+        return fallback_report(data)
 
     prompt = f"""
 You are an AI dermatology assistant generating a structured clinical report.
@@ -139,7 +220,7 @@ IMPORTANT RULES:
 
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            GENERATE_ENDPOINT,
             json={
                 "model": "llama3",
                 "prompt": prompt,

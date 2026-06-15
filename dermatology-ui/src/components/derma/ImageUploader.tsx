@@ -25,7 +25,7 @@ export default function ImageUploader({ file, preview, onFile }: Props) {
   if (preview) {
     return (
       <div className="relative group rounded-2xl overflow-hidden border border-primary/30 shadow-glow">
-        <img src={preview} alt="Lesion preview" className="w-full h-72 object-cover" />
+        <img src={preview} alt="Lesion preview" className="w-full h-72 object-contain" />
         <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm">
