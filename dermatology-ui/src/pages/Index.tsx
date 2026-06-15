@@ -62,7 +62,7 @@ export default function Index() {
   // -------------------------
   const fetchReport = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/report");
+      const res = await fetch("https://dermavision-api-6nj9.onrender.com/report");
       const data = await res.json();
 
       if (data.status === "ready") {
@@ -82,7 +82,7 @@ export default function Index() {
     if (!patient.patient_id) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/history/${patient.patient_id}`);
+      const res = await fetch(`https://dermavision-api-6nj9.onrender.com/history/${patient.patient_id}`);
       const data = await res.json();
       setHistory(data.history || []);
     } catch (err) {
@@ -149,7 +149,7 @@ export default function Index() {
         formData.append(key, val ? "y" : "n");
       });
 
-      const res = await fetch("http://127.0.0.1:8000/analyze", {
+      const res = await fetch("https://dermavision-api-6nj9.onrender.com/analyze", {
         method: "POST",
         body: formData,
       });
@@ -212,11 +212,11 @@ export default function Index() {
 
             <div className="grid lg:grid-cols-2 gap-6">
               <iframe
-                src={`http://127.0.0.1:8000${result.images.three_d}`}
+                src={`https://dermavision-api-6nj9.onrender.com${result.images.three_d}`}
                 className="w-full h-[600px] rounded-lg"
               />
               <img
-                src={`http://127.0.0.1:8000${result.images.profile}`}
+                src={`https://dermavision-api-6nj9.onrender.com${result.images.profile}`}
                 className="w-full h-[600px] object-contain"
               />
             </div>
@@ -304,7 +304,7 @@ function FullImage({ title, src }: any) {
     <div className="glass-card p-5">
       <h3 className="mb-2">{title}</h3>
       <img
-        src={`http://127.0.0.1:8000${src}`}
+        src={`https://dermavision-api-6nj9.onrender.com${src}`}
         alt={title}
         className="w-full h-auto object-contain rounded-md"
       />
@@ -335,7 +335,7 @@ function CroppedCompositeGrid({
         <div className="glass-card p-5">
           <h3 className="mb-2">{titleLeft}</h3>
           <img
-            src={`http://127.0.0.1:8000${srcLeft}`}
+            src={`https://dermavision-api-6nj9.onrender.com${srcLeft}`}
             alt={titleLeft}
             className="w-full h-auto object-contain rounded-md"
           />
@@ -345,7 +345,7 @@ function CroppedCompositeGrid({
         <div className="glass-card p-5">
           <h3 className="mb-2">{titleRight}</h3>
           <img
-            src={`http://127.0.0.1:8000${srcRight}`}
+            src={`https://dermavision-api-6nj9.onrender.com${srcRight}`}
             alt={titleRight}
             className="w-full h-auto object-contain rounded-md"
           />
