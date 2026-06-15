@@ -12,10 +12,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from torchvision import transforms
 import plotly.graph_objects as go
+import json
 
 # === Grad-CAM Configuration ===
-GRADCAM_TARGET_LAYER = 'features[-1]'  # Default target layer name in MobileNetV2
-GRADCAM_PERCENTILE = 75  # Keep top 25% activations
+GRADCAM_TARGET_LAYER = "features[17]"  # Fixed target Conv2d layer in MobileNetV2
+GRADCAM_PERCENTILE = 80  # Updated to improve focus
+
 SAVE_DEBUG = True  # Save raw/normalized/thresholded maps
 
 from database import save_patient
@@ -23,8 +25,70 @@ from datetime import datetime
 
 from train_unet import UNet
 os.makedirs("outputs", exist_ok=True)
-def run_pipeline():
+def generate_gradcam(model, input_tensor, target_class, target_layer_name=GRADCAM_TARGET_LAYER):
+    """Generate Grad‑CAM for a given *model* and *input_tensor*.
 
+    Args:
+        model: The classification model (e.g., MobileNetV2).
+        input_tensor: Pre‑processed tensor of shape (1, C, H, W).
+        target_class: Index of the class to visualize.
+        target_layer_name: String representing the attribute path to the last
+            convolutional layer. Defaults to GRADCAM_TARGET_LAYER.
+    Returns:
+        A 2‑D numpy array (H, W) with values in [0, 1].
+
+    """
+    gradients = []
+    activations = []
+
+    def backward_hook(module, grad_in, grad_out):
+        gradients.append(grad_out[0])
+
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    # Resolve target layer from the provided name (e.g., 'features[-1]')
+    try:
+        target_layer = eval(f"model.{target_layer_name}")
+    except Exception as e:
+        print(f"[WARN] Unable to resolve Grad‑CAM layer '{target_layer_name}': {e}. Falling back to model.features[-1].")
+        target_layer = model.features[-1]
+
+    handle_f = target_layer.register_forward_hook(forward_hook)
+    handle_b = target_layer.register_full_backward_hook(backward_hook)
+
+    output = model(input_tensor)
+    target_class = int(target_class)
+    loss = output[0, target_class]
+
+    model.zero_grad()
+    loss.backward()
+
+    # Safe handling
+    if not gradients or not activations:
+        return np.zeros((input_tensor.shape[2], input_tensor.shape[3]))
+
+    grads = gradients[0].detach()
+    acts = activations[0].detach()
+
+    weights = torch.mean(grads, dim=(2, 3), keepdim=True)
+    cam = torch.sum(weights * acts, dim=1).squeeze()
+
+    cam = F.relu(cam)
+
+    # Normalization to [0, 1]
+    if cam.max() != cam.min():
+        cam = (cam - cam.min()) / (cam.max() - cam.min())
+    else:
+        cam = torch.zeros_like(cam)
+
+    handle_f.remove()
+    handle_b.remove()
+
+    return cam.cpu().numpy()
+
+
+def run_pipeline():
     # -------------------------
     # CLASSIFICATION IMPORTS
     # -------------------------
@@ -54,180 +118,119 @@ def run_pipeline():
     print(" Model loaded successfully")
 
     # -------------------------
-    # LOAD CLASSIFICATION MODEL
-    # -------------------------
-    classifier = models.mobilenet_v2(weights=None)
-    classifier.classifier[1] = nn.Linear(classifier.last_channel, 7)
+  
+import torch.nn as nn
+from torchvision import models
 
-    classifier.load_state_dict(torch.load("models/mobilenet_final.pth", map_location=device), strict=False)
-    classifier.to(device)
-    classifier.eval()
-    # -------------------------
-    # GRAD-CAM IMPLEMENTATION
-    # -------------------------
-    def generate_gradcam(model, input_tensor, target_class, target_layer_name=GRADCAM_TARGET_LAYER):
-        """Generate Grad‑CAM for a given *model* and *input_tensor*.
+# Global classifier (for module‑level access)
 
-        Args:
-            model: The classification model (e.g., MobileNetV2).
-            input_tensor: Pre‑processed tensor of shape (1, C, H, W).
-            target_class: Index of the class to visualize.
-            target_layer_name: String representing the attribute path to the last
-                convolutional layer. Defaults to GRADCAM_TARGET_LAYER.
-        Returns:
-            A 2‑D numpy array (H, W) with values in [0, 1].
-        """
-        gradients = []
-        activations = []
+device = torch.device("cpu")
+classifier = models.mobilenet_v2(weights=None)
+classifier.classifier[1] = nn.Linear(classifier.last_channel, 7)
+classifier.load_state_dict(torch.load("models/mobilenet_final.pth", map_location=device), strict=False)
+classifier.to(device)
+classifier.eval()
 
-        def backward_hook(module, grad_in, grad_out):
-            gradients.append(grad_out[0])
-
-        def forward_hook(module, input, output):
-            activations.append(output)
-
-        # Resolve target layer from the provided name (e.g., 'features[-1]')
-        try:
-            target_layer = eval(f"model.{target_layer_name}")
-        except Exception as e:
-            print(f"[WARN] Unable to resolve Grad‑CAM layer '{target_layer_name}': {e}. Falling back to model.features[-1].")
-            target_layer = model.features[-1]
-
-        handle_f = target_layer.register_forward_hook(forward_hook)
-        handle_b = target_layer.register_full_backward_hook(backward_hook)
-
-        output = model(input_tensor)
-        target_class = int(target_class)
-        loss = output[0, target_class]
-
-        model.zero_grad()
-        loss.backward()
-
-        # Safe handling
-        if not gradients or not activations:
-            return np.zeros((input_tensor.shape[2], input_tensor.shape[3]))
-
-        grads = gradients[0].detach()
-        acts = activations[0].detach()
-
-        weights = torch.mean(grads, dim=(2, 3), keepdim=True)
-        cam = torch.sum(weights * acts, dim=1).squeeze()
-
-        cam = F.relu(cam)
-
-        # Normalization to [0, 1]
-        if cam.max() != cam.min():
-            cam = (cam - cam.min()) / (cam.max() - cam.min())
-        else:
-            cam = torch.zeros_like(cam)
-
-        handle_f.remove()
-        handle_b.remove()
-
-        return cam.cpu().numpy()
-    print(" Classification model loaded")
 
 # ------------------------------------------------------------------
 # Helper utilities for Grad‑CAM diagnostics
 # ------------------------------------------------------------------
 
-    def save_gradcam_debug(raw_cam, image_shape):
-        """Save raw, normalized, and thresholded Grad‑CAM maps.
+def save_gradcam_debug(raw_cam, image_shape, thresh_val=None):
+    """Save raw, normalized, and thresholded Grad‑CAM maps.
 
-        Args:
-            raw_cam (np.ndarray): Cam normalized to [0, 1] with original size.
-            image_shape (tuple): (height, width) of the original image.
-        """
-        # Ensure cam matches original image size (may already be resized later)
-        if raw_cam.shape != image_shape:
-            cam_resized = cv2.resize(raw_cam, (image_shape[1], image_shape[0]))
-        else:
-            cam_resized = raw_cam
+    Args:
+        raw_cam (np.ndarray): Cam normalized to [0, 1] with original size.
+        image_shape (tuple): (height, width) of the original image.
+        thresh_val (float, optional): Pre-computed threshold value.
+    """
+    # Ensure cam matches original image size (may already be resized later)
+    if raw_cam.shape != image_shape:
+        cam_resized = cv2.resize(raw_cam, (image_shape[1], image_shape[0]))
+    else:
+        cam_resized = raw_cam
 
-        # Raw map (grayscale 0‑255)
-        raw_path = os.path.join('outputs', 'gradcam_raw.png')
-        cv2.imwrite(raw_path, (cam_resized * 255).astype('uint8'))
+    # Raw map (grayscale 0‑255)
+    raw_path = os.path.join('outputs', 'gradcam_raw.png')
+    cv2.imwrite(raw_path, (cam_resized * 255).astype('uint8'))
 
-        # Normalized map (after percentile clipping)
+    # Normalized map (after percentile clipping)
+    if thresh_val is None:
         thresh_val = np.percentile(cam_resized, GRADCAM_PERCENTILE)
-        cam_thresh = np.where(cam_resized >= thresh_val, cam_resized, 0)
-        norm_path = os.path.join('outputs', 'gradcam_norm.png')
-        cv2.imwrite(norm_path, (cam_thresh * 255).astype('uint8'))
+    cam_thresh = np.where(cam_resized >= thresh_val, cam_resized, 0)
+    norm_path = os.path.join('outputs', 'gradcam_norm.png')
+    cv2.imwrite(norm_path, (cam_thresh * 255).astype('uint8'))
 
-        # Thresholded binary map for overlap computation
-        bin_path = os.path.join('outputs', 'gradcam_thresh.png')
-        binary = (cam_thresh > 0).astype('uint8') * 255
-        cv2.imwrite(bin_path, binary)
+    # Thresholded binary map for overlap computation
+    bin_path = os.path.join('outputs', 'gradcam_thresh.png')
+    binary = (cam_thresh > 0).astype('uint8') * 255
+    cv2.imwrite(bin_path, binary)
 
-        return cam_resized, cam_thresh
+    return cam_resized, cam_thresh
 
 
-    def compute_cam_mask_overlap(cam, mask):
-        """Compute percentage of Grad‑CAM activation inside vs outside the lesion mask.
+def compute_cam_mask_overlap(cam, mask):
+    """Compute percentage of Grad‑CAM activation inside vs outside the lesion mask.
 
-        Both *cam* and *mask* must be same spatial dimensions.
-        Returns (inside_pct, outside_pct).
-        """
-        if cam.shape != mask.shape:
-            cam_resized = cv2.resize(cam, (mask.shape[1], mask.shape[0]))
-        else:
-            cam_resized = cam
-        total_activation = cam_resized.sum()
-        if total_activation == 0:
-            return 0.0, 0.0
-        inside_activation = (cam_resized * mask).sum()
-        outside_activation = total_activation - inside_activation
-        inside_pct = (inside_activation / total_activation) * 100
-        outside_pct = (outside_activation / total_activation) * 100
-        return inside_pct, outside_pct
-    # -------------------------
-    # PREPROCESSING
-    # -------------------------
-    def preprocess_image(image):
-        h, w = image.shape[:2]
-        margin = int(min(h, w) * 0.1)
-        image = image[margin:h-margin, margin:w-margin]
+    Both *cam* and *mask* must be same spatial dimensions.
+    Returns (inside_pct, outside_pct).
+    """
+    if cam.shape != mask.shape:
+        cam_resized = cv2.resize(cam, (mask.shape[1], mask.shape[0]))
+    else:
+        cam_resized = cam
+    total_activation = cam_resized.sum()
+    if total_activation == 0:
+        return 0.0, 0.0
+    inside_activation = (cam_resized * mask).sum()
+    outside_activation = total_activation - inside_activation
+    inside_pct = (inside_activation / total_activation) * 100
+    outside_pct = (outside_activation / total_activation) * 100
+    return inside_pct, outside_pct
 
-        image = cv2.resize(image, (256,256), interpolation=cv2.INTER_LINEAR)
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        l,a,b = cv2.split(lab)
-        l = cv2.equalizeHist(l)
-        image = cv2.merge((l,a,b))
-        image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+def preprocess_image(image):
+    h, w = image.shape[:2]
+    margin = int(min(h, w) * 0.1)
+    image = image[margin:h-margin, margin:w-margin]
 
-        image = cv2.GaussianBlur(image, (3,3), 0)
+    image = cv2.resize(image, (256,256), interpolation=cv2.INTER_LINEAR)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l,a,b = cv2.split(lab)
+    l = cv2.equalizeHist(l)
+    image = cv2.merge((l,a,b))
+    image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
 
-        return image
+    image = cv2.GaussianBlur(image, (3,3), 0)
 
-    # -------------------------
-    # FALLBACK SEGMENTATION
-    # -------------------------
-    def fallback_segmentation(image_np):
-        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+    return image
 
-        # Otsu threshold
-        _, thresh = cv2.threshold(
-                gray, 0, 255,
-            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-        )
+def fallback_segmentation(image_np):
+    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
 
-        kernel = np.ones((7,7), np.uint8)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    # Otsu threshold
+    _, thresh = cv2.threshold(
+            gray, 0, 255,
+        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+    )
 
-        # remove noise
-        thresh = cv2.medianBlur(thresh, 5)
+    kernel = np.ones((7,7), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
-        contours, _ = cv2.findContours(
-            thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+    # remove noise
+    thresh = cv2.medianBlur(thresh, 5)
 
-        mask = np.zeros_like(gray)
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
-        if len(contours) > 0:
-            largest = max(contours, key=cv2.contourArea)
-            cv2.drawContours(mask, [largest], -1, 255, -1)
+    mask = np.zeros_like(gray)
 
-        return (mask > 0).astype(np.uint8)
+    if len(contours) > 0:
+        largest = max(contours, key=cv2.contourArea)
+        cv2.drawContours(mask, [largest], -1, 255, -1)
+
+    return (mask > 0).astype(np.uint8)
+
     # -------------------------
     # PATIENT DETAILS INPUT
     # -------------------------
@@ -536,133 +539,144 @@ def run_pipeline():
     print("Model Confidence:", confidence_level)
 
     # -------------------------
-    # GENERATE GRAD-CAM
-    # -------------------------
-    cam = generate_gradcam(classifier, cls_input, pred.item())
-    # Save diagnostics and compute overlap
-    cam_resized, cam_thresh = save_gradcam_debug(cam, image_np.shape[:2])
-    inside_pct, outside_pct = compute_cam_mask_overlap(cam_thresh, mask)
-    print(f"Grad‑CAM overlap – inside lesion: {inside_pct:.1f}% , outside: {outside_pct:.1f}%")
-
-    # -------------------------
-    # OVERLAY
-    # -------------------------
-    # -------------------------
-    # CREATE COLORED MASK
-    # -------------------------
-    colored_mask = np.zeros_like(image_np)
-    colored_mask[mask == 1] = [255, 0, 0]  # red mask
-    overlay = cv2.addWeighted(image_np, 0.7, colored_mask, 0.3, 0)
-
-
-    # SAVE
-    cv2.imwrite("outputs/overlay.png", cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
-    # -------------------------
-    # DISPLAY SEGMENTATION
-    #-------------------------
-    plt.figure(figsize=(12,4))
-                    
-    plt.subplot(1,3,1)
-    plt.imshow(image_np)
-    plt.title("Original Image")
-    plt.axis("off")
-
-    plt.subplot(1,3,2)
-    plt.imshow(mask, cmap='gray')
-    plt.title("Mask")
-    plt.axis("off")
-
-    plt.subplot(1,3,3)
-    plt.imshow(overlay)
-    plt.title("Overlay")
-    plt.axis("off")
-
-
-    plt.savefig("outputs/segmentation.png", bbox_inches='tight')
-    plt.close()
-    # -------------------------
-    # GRAD-CAM VISUALIZATION & COORDINATE-SPACE AUDIT
-    # -------------------------
-    print("\n===== GRAD-CAM COORDINATE-SPACE AUDIT =====")
-    print(f"Original image shape: {image_np.shape}")
-    print(f"Segmentation mask shape: {mask.shape}")
-    print(f"Lesion crop shape: {cropped.shape}")
-    print(f"Bounding box: ymin={y_min}, ymax={y_max}, xmin={x_min}, xmax={x_max}")
-    print(f"Classifier input shape: {cls_input.shape}")
-    print(f"CAM dimensions before resize: {cam.shape}")
-
-    # 1. Resize CAM to the exact lesion crop size
+    # ------------------------------------------------------------------
+    # TASK 1 & 2: RESTORE SEGMENTATION & OPTIMIZE GRAD-CAM
+    # ------------------------------------------------------------------
+    # Define crop dimensions for resizing
     crop_height = y_max - y_min
     crop_width = x_max - x_min
-    cam_resized_to_crop = cv2.resize(cam, (crop_width, crop_height), interpolation=cv2.INTER_LINEAR)
-    print(f"CAM dimensions after resize to crop: {cam_resized_to_crop.shape}")
 
-    # 2. Project CAM back into original image dimensions
-    cam_projected = np.zeros(image_np.shape[:2], dtype=np.float32)
-    cam_projected[y_min:y_max, x_min:x_max] = cam_resized_to_crop
-    print(f"CAM projected to original shape: {cam_projected.shape}")
-
-    # 3. Save diagnostic outputs as requested
-    cv2.imwrite(os.path.join('outputs', 'cam_raw.png'), np.uint8(255 * cam))
-    cv2.imwrite(os.path.join('outputs', 'cam_resized_to_crop.png'), np.uint8(255 * cam_resized_to_crop))
-    cv2.imwrite(os.path.join('outputs', 'cam_projected_to_original.png'), np.uint8(255 * cam_projected))
-
-    # 4. Generate Non-Thresholded Overlay (Smooth Blend)
-    heatmap_non_thresh = cv2.applyColorMap(np.uint8(255 * cam_projected), cv2.COLORMAP_JET)
-    heatmap_non_thresh = cv2.cvtColor(heatmap_non_thresh, cv2.COLOR_BGR2RGB)
+    # Create segmentation overlay (Task 1)
+    colored_mask = np.zeros_like(image_np)
+    colored_mask[mask == 1] = [255, 0, 0]  # red mask
+    seg_overlay = cv2.addWeighted(image_np, 0.7, colored_mask, 0.3, 0)
     
-    # Smooth blend that keeps healthy skin clean
-    alpha = 0.45 * cam_projected
-    alpha_3d = np.expand_dims(alpha, axis=-1)
-    overlay_cam = (image_np * (1.0 - alpha_3d) + heatmap_non_thresh * alpha_3d).astype(np.uint8)
-    cv2.imwrite(os.path.join('outputs', 'cam_overlay_final.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
-    cv2.imwrite(os.path.join('outputs', 'gradcam_overlay.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
-    cv2.imwrite(os.path.join('outputs', 'attention.png'), cv2.cvtColor(overlay_cam, cv2.COLOR_RGB2BGR))
-    print(f"Overlay image shape: {overlay_cam.shape}")
-
-    # 5. Generate Thresholded Overlay for comparison
-    thresh_val = np.percentile(cam_resized_to_crop, GRADCAM_PERCENTILE)
-    cam_vis_crop = np.where(cam_resized_to_crop >= thresh_val, cam_resized_to_crop, 0.0)
+    cv2.imwrite(os.path.join('outputs', 'original.png'), cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join('outputs', 'mask.png'), mask * 255)
+    cv2.imwrite(os.path.join('outputs', 'overlay.png'), cv2.cvtColor(seg_overlay, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join('outputs', 'segmentation_overlay.png'), cv2.cvtColor(seg_overlay, cv2.COLOR_RGB2BGR))
     
-    # Project thresholded CAM back to original size
-    cam_projected_thresh = np.zeros(image_np.shape[:2], dtype=np.float32)
-    cam_projected_thresh[y_min:y_max, x_min:x_max] = cam_vis_crop
-    
-    # Apply thresholded heatmap
-    heatmap_thresh = cv2.applyColorMap(np.uint8(255 * cam_projected_thresh), cv2.COLORMAP_JET)
-    heatmap_thresh = cv2.cvtColor(heatmap_thresh, cv2.COLOR_BGR2RGB)
-    
-    # Solid background blend or masked blend
-    # Multiply by mask to focus on lesion structure
-    if mask.shape == cam_projected_thresh.shape:
-        cam_projected_thresh_masked = cam_projected_thresh * mask
-    else:
-        cam_projected_thresh_masked = cam_projected_thresh
-    
-    heatmap_thresh_masked = cv2.applyColorMap(np.uint8(255 * cam_projected_thresh_masked), cv2.COLORMAP_JET)
-    heatmap_thresh_masked = cv2.cvtColor(heatmap_thresh_masked, cv2.COLOR_BGR2RGB)
-    
-    alpha_thresh = 0.45 * cam_projected_thresh_masked
-    alpha_thresh_3d = np.expand_dims(alpha_thresh, axis=-1)
-    overlay_thresh = (image_np * (1.0 - alpha_thresh_3d) + heatmap_thresh_masked * alpha_thresh_3d).astype(np.uint8)
-    
-    cv2.imwrite(os.path.join('outputs', 'cam_overlay_thresholded.png'), cv2.cvtColor(overlay_thresh, cv2.COLOR_RGB2BGR))
-
-    # 6. Save the 3-panel display
+    # Save the 3‑panel display for backward compatibility/direct rendering in some views
     plt.figure(figsize=(12, 4))
-
     plt.subplot(1, 3, 1)
     plt.imshow(image_np)
     plt.title("Original Image")
     plt.axis("off")
 
     plt.subplot(1, 3, 2)
-    plt.imshow(cam_projected, cmap='jet')
+    plt.imshow(mask, cmap='gray')
+    plt.title("Mask")
+    plt.axis("off")
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(seg_overlay)
+    plt.title("Overlay")
+    plt.axis("off")
+
+    plt.savefig("outputs/segmentation.png", bbox_inches='tight')
+    plt.close()
+
+    # Find lesion centroid from mask
+    mask_coords = np.column_stack(np.where(mask > 0))
+    if mask_coords.size == 0:
+        lesion_centroid_y, lesion_centroid_x = 0.0, 0.0
+    else:
+        lesion_centroid_y, lesion_centroid_x = mask_coords.mean(axis=0)
+
+    # Generate Grad-CAM for the fixed target layer
+    cam_candidate = generate_gradcam(classifier, cls_input, pred.item(), target_layer_name=GRADCAM_TARGET_LAYER)
+
+    # Resize Grad-CAM to the lesion crop size
+    cam_resized_to_crop = cv2.resize(cam_candidate, (crop_width, crop_height), interpolation=cv2.INTER_LINEAR)
+
+    # Project Grad-CAM back to original image dimensions
+    cam_proj = np.zeros(image_np.shape[:2], dtype=np.float32)
+    cam_proj[y_min:y_max, x_min:x_max] = cam_resized_to_crop
+
+    # Refinement Pipeline (Gaussian smoothing, normalization, percentile thresholding, re-normalization)
+    cam_smoothed = cv2.GaussianBlur(cam_proj, (11, 11), 0)
+    cam_norm = (cam_smoothed - cam_smoothed.min()) / (cam_smoothed.max() - cam_smoothed.min() + 1e-8)
+    thresh_val = np.percentile(cam_norm, GRADCAM_PERCENTILE)
+    cam_thresh = np.where(cam_norm >= thresh_val, cam_norm, 0.0)
+    if cam_thresh.max() > 0:
+        cam_thresh = cam_thresh / (cam_thresh.max() + 1e-8)
+
+    # Compute metrics using the refined map
+    attention_inside_pct, attention_outside_pct = compute_cam_mask_overlap(cam_thresh, mask)
+
+    # Compute Grad-CAM centroid
+    cam_total = cam_thresh.sum()
+    if cam_total == 0:
+        cam_centroid_y, cam_centroid_x = 0.0, 0.0
+    else:
+        yy, xx = np.indices(cam_thresh.shape)
+        cam_centroid_y = (cam_thresh * yy).sum() / cam_total
+        cam_centroid_x = (cam_thresh * xx).sum() / cam_total
+
+    # Euclidean distance between centroids
+    centroid_dist = np.sqrt((lesion_centroid_y - cam_centroid_y) ** 2 + (lesion_centroid_x - cam_centroid_x) ** 2)
+
+    # Store results in dictionary for later compatibility
+    layer_results = {"fixed_layer": {
+        "cam_thresh": cam_thresh,
+        "inside_pct": attention_inside_pct,
+        "outside_pct": attention_outside_pct,
+        "centroid_distance": centroid_dist,
+        "layer_num": "fixed"
+    }}
+    best_layer_name = "fixed_layer"
+    best_layer_data = layer_results[best_layer_name]
+
+    # Final outputs based on best layer selection
+    final_cam = best_layer_data["cam_thresh"]
+    inside_pct = best_layer_data["inside_pct"]
+    centroid_distance = best_layer_data["centroid_distance"]
+    outside_pct = best_layer_data["outside_pct"]
+
+    # Print the required Phase 8 verification metrics
+    print(f"Selected Layer: {best_layer_name}")
+    print(f"Attention Alignment: {inside_pct:.1f}%")
+    print(f"Centroid Distance: {centroid_distance:.1f} px")
+    print(f"Inside Activation: {inside_pct:.1f}%")
+    print(f"Outside Activation: {outside_pct:.1f}%")
+
+
+
+    # Save attention alignment score
+    with open(os.path.join('outputs', 'attention_alignment.txt'), 'w') as f:
+        f.write(f"Attention Alignment Score: {inside_pct:.1f}%\n")
+
+    # Generate final Grad-CAM images:
+    # 1. gradcam_raw.png: raw normalized Grad-Cam values (grayscale 0-255)
+    cv2.imwrite(os.path.join('outputs', 'gradcam_raw.png'), np.uint8(255 * final_cam))
+
+    # 2. gradcam_heatmap.png: jet-colored heatmap ONLY (RGB-equivalent for matplotlib but BGR for cv2.imwrite)
+    heatmap_final = cv2.applyColorMap(np.uint8(255 * final_cam), cv2.COLORMAP_JET)
+    cv2.imwrite(os.path.join('outputs', 'gradcam_heatmap.png'), heatmap_final)
+
+# 3. gradcam_overlay.png: blended image (jet-colored heatmap alpha-blended on the original image)
+    heatmap_final_rgb = cv2.cvtColor(heatmap_final, cv2.COLOR_BGR2RGB)
+    alpha_final = 0.45 * final_cam
+    alpha_3d_final = np.expand_dims(alpha_final, axis=-1)
+    final_overlay = (image_np * (1.0 - alpha_3d_final) + heatmap_final_rgb * alpha_3d_final).astype(np.uint8)
+    
+    cv2.imwrite(os.path.join('outputs', 'gradcam_overlay.png'), cv2.cvtColor(final_overlay, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join('outputs', 'attention.png'), cv2.cvtColor(final_overlay, cv2.COLOR_RGB2BGR))
+
+    # Save the 3‑panel display for Grad-CAM (backward compatibility)
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 3, 1)
+    plt.imshow(image_np)
+    plt.title("Original Image")
+    plt.axis("off")
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(final_cam, cmap='jet')
     plt.title("Grad-CAM Heatmap")
     plt.axis("off")
 
     plt.subplot(1, 3, 3)
-    plt.imshow(overlay_cam)
+    plt.imshow(final_overlay)
     plt.title("Attention Overlay")
     plt.axis("off")
 
@@ -1000,14 +1014,15 @@ def run_pipeline():
 
 
     final_output = {
-        "metrics": {
+                "metrics": {
             "area_px": int(area),
             "relative_area_pct": float(relative_area),
             "perimeter_px": int(perimeter),
             "roughness": float(roughness),
             "volume": float(volume),
             "max_depth": float(max_depth),
-            "mean_depth": float(mean_depth)
+            "mean_depth": float(mean_depth),
+            "attention_alignment_score": float(inside_pct)
         },
         "classification": {
             "label": str(predicted_label),

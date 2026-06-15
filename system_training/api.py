@@ -230,7 +230,13 @@ async def analyze(
             "wolfram_analysis": wolfram_analysis,
             "images": {
                 "segmentation": "/static/segmentation.png",
+                "segmentation_original": "/static/original.png",
+                "segmentation_mask": "/static/mask.png",
+                "segmentation_overlay": "/static/segmentation_overlay.png",
                 "gradcam": "/static/gradcam.png",
+                "gradcam_original": "/static/original.png",
+                "gradcam_heatmap": "/static/gradcam_heatmap.png",
+                "gradcam_overlay": "/static/gradcam_overlay.png",
                 "attention": "/static/attention.png",
                 "depth": "/static/depth.png",
                 "depth_gray": "/static/depth_raw.png",

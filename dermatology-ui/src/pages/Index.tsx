@@ -203,9 +203,86 @@ export default function Index() {
         {/* RESULTS */}
         {result?.images && (
           <div className="space-y-12">
+            {/* Segmentation Analysis */}
+            <div className="glass-card p-6 space-y-4">
+              <h3 className="text-lg font-bold tracking-tight text-cyan-400">Segmentation Analysis</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Original Image</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.segmentation_original || result.images.original}`}
+                      alt="Original Image"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Binary Mask</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.segmentation_mask || result.images.segmentation}`}
+                      alt="Binary Mask"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Overlay</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.segmentation_overlay || result.images.overlay}`}
+                      alt="Segmentation Overlay"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-            <FullImage title="Segmentation" src={result.images.segmentation} />
-            <FullImage title="Grad-CAM" src={result.images.gradcam} />
+            {/* Grad-CAM Localization */}
+            <div className="glass-card p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold tracking-tight text-cyan-400">Grad-CAM Localization</h3>
+                {result.metrics?.attention_alignment_score !== undefined && (
+                  <div className="flex gap-4 text-xs font-semibold text-cyan-300 bg-cyan-500/10 px-3 py-1.5 rounded-lg border border-cyan-500/20">
+                    <span>Attention Alignment: {result.metrics.attention_alignment_score.toFixed(1)}%</span>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Original Image</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.gradcam_original || result.images.original}`}
+                      alt="Original Image"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Grad-CAM Heatmap</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.gradcam_heatmap || result.images.gradcam}`}
+                      alt="Grad-CAM Heatmap"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Attention Overlay</span>
+                  <div className="aspect-[4/3] w-full bg-black/40 rounded-xl border border-white/5 flex items-center justify-center p-3 relative overflow-hidden group hover:border-cyan-500/30 transition">
+                    <img
+                      src={`http://127.0.0.1:8000${result.images.gradcam_overlay || result.images.attention}`}
+                      alt="Attention Overlay"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <CroppedCompositeGrid titleLeft="Depth" srcLeft={result.images.depth} titleRight="Depth Raw" srcRight={result.images.depth_gray} />
 
