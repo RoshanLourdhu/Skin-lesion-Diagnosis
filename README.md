@@ -198,7 +198,7 @@ Demo Link
 
 
 
-To be updated after deployment.
+https://skin-lesion-diagnosis-934r.vercel.app
 
 
 
