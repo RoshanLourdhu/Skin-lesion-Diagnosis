@@ -1,222 +1,194 @@
-DermaVision AI: Explainable Skin Lesion Diagnosis and Risk Assessment Platform
+# DermaVision AI: Explainable Skin Lesion Diagnosis and Risk Assessment Platform
 
-Project Overview
+## Overview
 
+DermaVision AI is an advanced AI-powered dermatology platform designed to assist in early skin lesion assessment through explainable artificial intelligence, lesion segmentation, classification, depth estimation, 3D visualization, and automated clinical reporting.
 
+The platform combines computer vision, deep learning, explainable AI, mathematical risk assessment, and interactive visualization to provide clinicians and researchers with comprehensive lesion analysis.
 
-DermaVision AI is an AI-powered skin lesion analysis platform that combines lesion segmentation, lesion classification, explainable AI, depth estimation, and clinical intelligence analytics to assist in the assessment of dermatological images.
+---
 
+## Live Demo
 
+### Frontend (Vercel)
 
-The platform provides visual explanations of model decisions through Grad-CAM, quantitative lesion measurements, risk evaluation, and a comprehensive clinical report.
+https://skin-lesion-diagnosis-eight.vercel.app/
 
+### Backend (Google Cloud Run)
 
+https://dermavision-backend-530379106718.us-central1.run.app
 
-Problem Statement
+---
 
+## Key Features
 
+* Automated skin lesion segmentation using U-Net
+* Skin lesion classification using MobileNet
+* Grad-CAM explainability visualization
+* Lesion depth estimation
+* 3D lesion surface reconstruction
+* Morphological feature extraction
+* Risk assessment and severity scoring
+* Wolfram Clinical Intelligence integration
+* Automated clinical report generation
+* Patient history management
+* Interactive web dashboard
 
-Early identification of suspicious skin lesions is critical for timely clinical intervention. Traditional screening methods may require specialist expertise and can be difficult to access in certain regions.
+---
 
+## System Architecture
 
+![Architecture](README_Assets/architecture.png)
 
-DermaVision AI aims to provide an intelligent decision-support platform capable of:
+---
 
+## Workflow
 
+1. Patient uploads a dermoscopic image.
+2. Image preprocessing is performed.
+3. U-Net extracts the lesion region.
+4. Morphological lesion metrics are calculated.
+5. MobileNet predicts lesion class.
+6. Grad-CAM highlights important diagnostic regions.
+7. Depth estimation generates lesion thickness information.
+8. 3D reconstruction visualizes lesion topology.
+9. Risk assessment engine computes severity indicators.
+10. Wolfram Clinical Intelligence performs mathematical analysis.
+11. Clinical report is generated automatically.
+12. Results are displayed in the dashboard.
 
-Detecting lesion regions
+---
 
-Classifying skin lesions
+## Technology Stack
 
-Explaining AI decisions
+### Frontend
 
-Generating quantitative lesion analytics
+* React
+* TypeScript
+* Vite
+* Tailwind CSS
 
-Producing clinical assessment reports
+### Backend
 
-Key Features
+* FastAPI
+* Python
 
-AI-Powered Lesion Segmentation
+### Deep Learning
 
-U-Net based lesion segmentation
+* PyTorch
+* MobileNet
+* U-Net
 
-Automatic lesion boundary extraction
+### Computer Vision
 
-Lesion coverage estimation
+* OpenCV
+* Scikit-Image
+* NumPy
+* SciPy
 
-Skin Lesion Classification
+### Visualization
 
-MobileNetV2 classification model
+* Plotly
+* Matplotlib
 
-Seven dermoscopic lesion categories
+### Deployment
 
-Explainable AI
+* Vercel
+* Google Cloud Run
 
-Grad-CAM heatmap generation
+---
 
-Model attention visualization
+## Dataset
 
-Clinical focus validation
+The project utilizes publicly available dermatology datasets:
 
-Depth Analysis
+* HAM10000 Dataset
+* ISIC 2018 Skin Lesion Dataset
 
-Relative lesion depth estimation
+---
 
-Morphological analysis
+## Results
 
-Clinical Intelligence Dashboard
+### Dashboard
 
-Circularity analysis
+![Dashboard](README_Assets/dashboard.png)
 
-Border asymmetry analysis
+### Analysis Interface
 
-Fractal dimension analysis
+![Analysis](README_Assets/analysis.png)
 
-Depth aspect ratio analysis
+### Segmentation Result
 
-AI Clinical Report
+![Segmentation](README_Assets/segmentation.png)
 
-Automated lesion assessment
+### Grad-CAM Explainability
 
-Risk evaluation
+![GradCAM](README_Assets/gradcam.png)
 
-Clinical insights generation
+### Depth Estimation
 
-Dataset
+![DepthMap](README_Assets/depthmap.png)
 
+### 3D Lesion Reconstruction
 
+![3D Surface](README_Assets/surface3d.png)
 
-HAM10000 Dataset
+### Wolfram Clinical Intelligence
 
+![Wolfram](README_Assets/wolfram.png)
 
+### Automated Clinical Report
 
-Supported Classes:
+![Report](README_Assets/report.png)
 
+---
 
+## Clinical Metrics Generated
 
-Melanoma (mel)
+* Lesion Area
+* Relative Area Percentage
+* Perimeter
+* Border Roughness
+* Volume Estimation
+* Mean Depth
+* Maximum Depth
+* Risk Index
+* Severity Score
+* Mathematical Lesion Analysis
 
-Melanocytic Nevus (nv)
+---
 
-Basal Cell Carcinoma (bcc)
+## Explainable AI Components
 
-Benign Keratosis (bkl)
+The platform incorporates multiple explainability modules:
 
-Actinic Keratosis (akiec)
+* Grad-CAM heatmap visualization
+* Lesion boundary extraction
+* Morphological analysis
+* Risk scoring transparency
+* Clinical interpretation support
 
-Dermatofibroma (df)
+---
 
-Vascular Lesions (vasc)
+## Team
 
-Technology Stack
+* Roshan L
+* Navya S
+* Sanjay
+* Sam Roshan
 
-Frontend
+---
 
-React
+## Future Enhancements
 
-TypeScript
+* Multi-class clinical decision support
+* Temporal lesion progression tracking
+* Mobile application deployment
+* Integration with Electronic Health Records (EHR)
+* Dermatologist feedback loop learning
 
-Tailwind CSS
+---
 
-Vite
+## License
 
-Backend
-
-FastAPI
-
-Python
-
-AI \& Machine Learning
-
-PyTorch
-
-U-Net
-
-MobileNetV2
-
-Grad-CAM
-
-Analytics
-
-Wolfram Language
-
-Mathematical Clinical Intelligence Engine
-
-System Architecture
-
-
-
-Input Image
-
-→ Segmentation (U-Net)
-
-→ Classification (MobileNetV2)
-
-→ Grad-CAM Explainability
-
-→ Depth Estimation
-
-→ Wolfram Clinical Intelligence
-
-→ Clinical Report Generation
-
-
-
-Installation
-
-Backend
-
-cd system\_training
-
-pip install -r requirements.txt
-
-python -m uvicorn api:app --host 127.0.0.1 --port 8000
-
-Frontend
-
-cd dermatology-ui
-
-npm install
-
-npm run dev
-
-Usage
-
-Upload a dermoscopic skin lesion image.
-
-Enter patient information.
-
-Select symptoms.
-
-Click Run Analysis.
-
-Review segmentation, Grad-CAM, analytics, and report.
-
-
-
-Demo Link
-
-
-
-https://skin-lesion-diagnosis-934r.vercel.app
-
-
-
-Future Scope
-
-Unknown lesion detection
-
-Cloud-based inference
-
-Mobile application
-
-Dermatologist feedback integration
-
-Clinical validation studies
-
-License
-
-
-
-This project is intended for academic, research, and demonstration purposes.
-
+MIT License
