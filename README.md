@@ -38,7 +38,7 @@ https://dermavision-backend-530379106718.us-central1.run.app
 
 ## System Architecture
 
-![Architecture](README_Assets/architecture.png)
+![Architecture](README_Assets/Architecture.png)
 
 ---
 
@@ -111,35 +111,35 @@ The project utilizes publicly available dermatology datasets:
 
 ### Dashboard
 
-![Dashboard](README_Assets/dashboard.png)
+![Dashboard](README_Assets/Dashboard.png)
 
 ### Analysis Interface
 
-![Analysis](README_Assets/analysis.png)
+![Analysis](README_Assets/Analysis.png)
 
 ### Segmentation Result
 
-![Segmentation](README_Assets/segmentation.png)
+![Segmentation](README_Assets/Segmentation.png)
 
 ### Grad-CAM Explainability
 
-![GradCAM](README_Assets/gradcam.png)
+![GradCAM](README_Assets/GradCam.png)
 
 ### Depth Estimation
 
-![DepthMap](README_Assets/depthmap.png)
+![DepthMap](README_Assets/Depthmap.png)
 
 ### 3D Lesion Reconstruction
 
-![3D Surface](README_Assets/surface3d.png)
+![3D Surface](README_Assets/3D%20Surface.png)
 
 ### Wolfram Clinical Intelligence
 
-![Wolfram](README_Assets/wolfram.png)
+![Wolfram](README_Assets/Wolfram.png)
 
 ### Automated Clinical Report
 
-![Report](README_Assets/report.png)
+![Report](README_Assets/Report.png)
 
 ---
 
@@ -186,7 +186,6 @@ The platform incorporates multiple explainability modules:
 * Mobile application deployment
 * Integration with Electronic Health Records (EHR)
 * Dermatologist feedback loop learning
-  
 
 ---
 
