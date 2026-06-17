@@ -186,6 +186,7 @@ The platform incorporates multiple explainability modules:
 * Mobile application deployment
 * Integration with Electronic Health Records (EHR)
 * Dermatologist feedback loop learning
+  
 
 ---
 
