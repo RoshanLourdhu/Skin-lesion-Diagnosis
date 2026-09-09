@@ -127,6 +127,21 @@ export default function Index() {
       }
     }
 
+    const analysisId = record[16];
+    let historicalImages = result?.images;
+
+    if (analysisId) {
+      historicalImages = {
+        segmentation: `/records/${analysisId}/segmentation.png`,
+        gradcam: `/records/${analysisId}/gradcam.png`,
+        attention: `/records/${analysisId}/attention.png`,
+        depth: `/records/${analysisId}/depth.png`,
+        depth_gray: `/records/${analysisId}/depth_raw.png`,
+        profile: `/records/${analysisId}/profile.png`,
+        three_d: `/records/${analysisId}/3d_interactive.html`
+      };
+    }
+
     setResult({
       classification: {
         label: record[10],
@@ -142,7 +157,7 @@ export default function Index() {
         mean_depth: record[9],
       },
       wolfram_analysis: wolframAnalysis,
-      images: result?.images
+      images: historicalImages
     });
   };
 
