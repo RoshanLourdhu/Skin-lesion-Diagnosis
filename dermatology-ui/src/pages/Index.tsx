@@ -116,7 +116,7 @@ export default function Index() {
   const loadFromHistory = (record: any) => {
     setSelectedRecord(record);
 
-    setReport(record[13]);
+    setReport(record[13] || "");
 
     let wolframAnalysis = null;
     if (record[15]) {
@@ -128,7 +128,7 @@ export default function Index() {
     }
 
     const analysisId = record[16];
-    let historicalImages = result?.images;
+    let historicalImages;
 
     if (analysisId) {
       historicalImages = {
@@ -140,6 +140,29 @@ export default function Index() {
         profile: `/records/${analysisId}/profile.png`,
         three_d: `/records/${analysisId}/3d_interactive.html`
       };
+      setPreview(`${API_BASE_URL}/records/${analysisId}/input.jpg`);
+    } else {
+      historicalImages = {
+        segmentation: `/static/segmentation.png`,
+        gradcam: `/static/gradcam.png`,
+        attention: `/static/gradcam_overlay.png`,
+        depth: `/static/depth.png`,
+        depth_gray: `/static/depth_raw.png`,
+        profile: `/static/profile.png`,
+        three_d: `/static/3d_interactive.html`
+      };
+      if (record[3]) {
+        setPreview(`${API_BASE_URL}/static/input.jpg`);
+      }
+    }
+
+    if (record[0] || record[1] || record[2] || record[17]) {
+      setPatient({
+        patient_id: record[0] || "",
+        name: record[1] || "",
+        age: record[2] !== null && record[2] !== undefined ? String(record[2]) : "",
+        duration: record[17] || "",
+      });
     }
 
     setResult({
@@ -262,23 +285,25 @@ export default function Index() {
         {result?.images && (
           <div className="space-y-12">
 
-            <FullImage title="Segmentation" src={result.images.segmentation} />
-            <FullImage title="Grad-CAM" src={result.images.gradcam} />
+            <FullImage key={result.images.segmentation} title="Segmentation" src={result.images.segmentation} />
+            <FullImage key={result.images.gradcam} title="Grad-CAM" src={result.images.gradcam} />
 
-            <CroppedCompositeGrid titleLeft="Depth" srcLeft={result.images.depth} titleRight="Depth Raw" srcRight={result.images.depth_gray} />
+            <CroppedCompositeGrid key={result.images.depth} titleLeft="Depth" srcLeft={result.images.depth} titleRight="Depth Raw" srcRight={result.images.depth_gray} />
 
             <div className="grid lg:grid-cols-2 gap-6">
               <iframe
+                key={result.images.three_d}
                 src={`${API_BASE_URL}${result.images.three_d}`}
                 className="w-full h-[600px] rounded-lg"
               />
               <img
+                key={result.images.profile}
                 src={`${API_BASE_URL}${result.images.profile}`}
                 className="w-full h-[600px] object-contain"
               />
             </div>
 
-            <WolframClinicalIntelligence analysis={result.wolfram_analysis} loading={loading} classification={result.classification} />
+            <WolframClinicalIntelligence key={result.images.segmentation + "_wolfram"} analysis={result.wolfram_analysis} loading={loading} classification={result.classification} />
 
             <div className="grid lg:grid-cols-3 gap-6 items-start">
 
