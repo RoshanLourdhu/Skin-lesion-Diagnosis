@@ -20,51 +20,52 @@ export default function PatientDetailsForm({ data, onChange }: Props) {
 
       {/* PATIENT ID */}
       <div className="space-y-1">
-        <label className="text-xs">Patient ID</label>
+        <label className="text-xs font-medium text-gray-300">Patient ID <span className="text-cyan-400">*</span></label>
         <input
           type="text"
           value={data.patient_id}
           onChange={(e) => onChange("patient_id", e.target.value)}
           placeholder="e.g. PAT-001"
-          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none"
+          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none focus:border-cyan-500/50 text-sm"
         />
       </div>
 
       {/* NAME */}
       <div className="space-y-1">
-        <label className="text-xs">Full Name</label>
+        <label className="text-xs font-medium text-gray-300">Full Name <span className="text-cyan-400">*</span></label>
         <input
           type="text"
           value={data.name}
           onChange={(e) => onChange("name", e.target.value)}
           placeholder="John Doe"
-          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none"
+          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none focus:border-cyan-500/50 text-sm"
         />
       </div>
 
       {/* AGE */}
       <div className="space-y-1">
-        <label className="text-xs">Age</label>
+        <label className="text-xs font-medium text-gray-300">Age <span className="text-cyan-400">*</span></label>
         <input
           type="number"
           value={data.age}
           onChange={(e) => onChange("age", e.target.value)}
           placeholder="25"
-          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none"
+          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none focus:border-cyan-500/50 text-sm"
         />
       </div>
 
       {/* DURATION */}
       <div className="space-y-1">
-        <label className="text-xs">Duration</label>
+        <label className="text-xs font-medium text-gray-300">Duration <span className="text-cyan-400">*</span></label>
         <input
           type="text"
           value={data.duration}
           onChange={(e) => onChange("duration", e.target.value)}
           placeholder="e.g. 2 weeks"
-          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none"
+          className="w-full px-3 py-2 rounded-lg bg-secondary/40 border border-border focus:outline-none focus:border-cyan-500/50 text-sm"
         />
       </div>
+
 
     </div>
   );

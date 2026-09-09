@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { API_BASE_URL } from "@/config";
+import { AlertCircle } from "lucide-react";
 
 import Header from "@/components/derma/Header";
+
 import PatientDetailsForm from "@/components/derma/PatientDetailsForm";
 import SymptomsSelector from "@/components/derma/SymptomsSelector";
 import ImageUploader from "@/components/derma/ImageUploader";
@@ -36,33 +39,49 @@ export default function Index() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState("");
   const [result, setResult] = useState<any>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // 🔥 NEW
   const [history, setHistory] = useState<any[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+
+  const isPatientValid = Boolean(
+    patient.patient_id.trim() &&
+    patient.name.trim() &&
+    patient.age.trim() &&
+    patient.duration.trim()
+  );
 
   // -------------------------
   // HANDLERS
   // -------------------------
   const handlePatientChange = (key: string, value: string) => {
     setPatient(prev => ({ ...prev, [key]: value }));
+    if (validationError) setValidationError(null);
   };
+
 
   const handleToggle = (key: string) => {
     setSymptoms(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleFile = (f: File) => {
+  const handleFile = (f: File | null, customPreview?: string | null) => {
+    if (!f) {
+      setFile(null);
+      setPreview(null);
+      return;
+    }
     setFile(f);
-    setPreview(URL.createObjectURL(f));
+    setPreview(customPreview || URL.createObjectURL(f));
   };
+
 
   // -------------------------
   // REPORT POLLING
   // -------------------------
   const fetchReport = async () => {
     try {
-      const res = await fetch("https://dermavision-backend-530379106718.us-central1.run.app/report");
+      const res = await fetch(`${API_BASE_URL}/report`);
       const data = await res.json();
 
       if (data.status === "ready") {
@@ -82,13 +101,14 @@ export default function Index() {
     if (!patient.patient_id) return;
 
     try {
-      const res = await fetch(`https://dermavision-backend-530379106718.us-central1.run.app/history/${patient.patient_id}`);
+      const res = await fetch(`${API_BASE_URL}/history/${patient.patient_id}`);
       const data = await res.json();
       setHistory(data.history || []);
     } catch (err) {
       console.error(err);
     }
   };
+
 
   // -------------------------
   // LOAD FROM HISTORY
@@ -130,8 +150,17 @@ export default function Index() {
   // MAIN ANALYSIS
   // -------------------------
   const runAnalysis = async () => {
-    if (!file) return;
+    if (!file) {
+      setValidationError("Please select or upload a lesion image first.");
+      return;
+    }
 
+    if (!isPatientValid) {
+      setValidationError("Please fill out all required Patient Details (ID, Name, Age, Duration) before starting AI analysis.");
+      return;
+    }
+
+    setValidationError(null);
     setLoading(true);
     setReport("");
     setResult(null);
@@ -149,7 +178,7 @@ export default function Index() {
         formData.append(key, val ? "y" : "n");
       });
 
-      const res = await fetch("https://dermavision-backend-530379106718.us-central1.run.app/analyze", {
+      const res = await fetch(`${API_BASE_URL}/analyze`, {
         method: "POST",
         body: formData,
       });
@@ -195,11 +224,24 @@ export default function Index() {
           <div className="flex flex-col gap-6">
             <SymptomsSelector selected={symptoms} onToggle={handleToggle} />
             <ImageUploader file={file} preview={preview} onFile={handleFile} />
+
+            {validationError && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs flex items-center gap-2.5 animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{validationError}</span>
+              </div>
+            )}
+
             <div className="flex justify-center">
-              <RunAnalysisButton loading={loading} disabled={!file} onClick={runAnalysis} />
+              <RunAnalysisButton
+                loading={loading}
+                disabled={!file || !isPatientValid}
+                onClick={runAnalysis}
+              />
             </div>
           </div>
         </div>
+
 
         {/* RESULTS */}
         {result?.images && (
@@ -212,11 +254,11 @@ export default function Index() {
 
             <div className="grid lg:grid-cols-2 gap-6">
               <iframe
-                src={`https://dermavision-backend-530379106718.us-central1.run.app${result.images.three_d}`}
+                src={`${API_BASE_URL}${result.images.three_d}`}
                 className="w-full h-[600px] rounded-lg"
               />
               <img
-                src={`https://dermavision-backend-530379106718.us-central1.run.app${result.images.profile}`}
+                src={`${API_BASE_URL}${result.images.profile}`}
                 className="w-full h-[600px] object-contain"
               />
             </div>
@@ -304,7 +346,7 @@ function FullImage({ title, src }: any) {
     <div className="glass-card p-5">
       <h3 className="mb-2">{title}</h3>
       <img
-        src={`https://dermavision-backend-530379106718.us-central1.run.app${src}`}
+        src={`${API_BASE_URL}${src}`}
         alt={title}
         className="w-full h-auto object-contain rounded-md"
       />
@@ -335,7 +377,7 @@ function CroppedCompositeGrid({
         <div className="glass-card p-5">
           <h3 className="mb-2">{titleLeft}</h3>
           <img
-            src={`https://dermavision-backend-530379106718.us-central1.run.app${srcLeft}`}
+            src={`${API_BASE_URL}${srcLeft}`}
             alt={titleLeft}
             className="w-full h-auto object-contain rounded-md"
           />
@@ -345,7 +387,7 @@ function CroppedCompositeGrid({
         <div className="glass-card p-5">
           <h3 className="mb-2">{titleRight}</h3>
           <img
-            src={`https://dermavision-backend-530379106718.us-central1.run.app${srcRight}`}
+            src={`${API_BASE_URL}${srcRight}`}
             alt={titleRight}
             className="w-full h-auto object-contain rounded-md"
           />
@@ -353,4 +395,4 @@ function CroppedCompositeGrid({
       )}
     </div>
   );
-}
+}

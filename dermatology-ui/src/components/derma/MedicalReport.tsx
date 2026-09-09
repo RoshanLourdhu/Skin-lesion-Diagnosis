@@ -61,7 +61,7 @@ export default function MedicalReport({ report, loading }: Props) {
       </div>
 
       {/* BODY */}
-      <div className="p-6">
+      <div className="p-6 max-h-[650px] overflow-y-auto overflow-x-hidden pr-4">
 
         {/* LOADING STATE */}
         {loading && (
