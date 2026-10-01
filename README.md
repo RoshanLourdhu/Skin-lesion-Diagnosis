@@ -12,7 +12,7 @@ The platform combines computer vision, deep learning, explainable AI, mathematic
 
 ### Frontend (Vercel)
 
-https://skin-lesion-diagnosis-eight.vercel.app/
+[https://skin-lesion-diagnosis-eight.vercel.app/](https://dermatology-ui.vercel.app/)
 
 ### Backend (Google Cloud Run)
 
